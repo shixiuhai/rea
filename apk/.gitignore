@@ -1,0 +1,14 @@
+# Reverse-engineering workspace for the com.dragon.read APK.
+# Large binary inputs and derived artifacts are kept on disk, not committed.
+
+# Target APK (keep locally; re-obtain from the store if needed)
+novelapp_*.apk
+*.apk
+
+# Native libraries are extracted on demand: ./run.sh extract-so
+fqnovel_api/fqnovel/native/libs/
+
+# Generated output / local virtualenv
+fqnovel_api/out/
+fqnovel_api/.venv/
+fqnovel_api/.pytest_cache/

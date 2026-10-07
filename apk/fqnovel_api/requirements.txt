@@ -1,0 +1,4 @@
+requests>=2.28
+# optional, only for the on-device signing bridge (hooks/signer_bridge.py):
+#   frida>=16.0
+#   frida-tools>=12.0
