@@ -181,7 +181,11 @@ Three supported ways to attach a signer (all pluggable in `fqnovel/signer.py`):
    ```bash
    ./run.sh extract-so        # writes fqnovel/native/libs/*.so + sha256
    ./run.sh probe-native      # reports ELF arch and why dlopen cannot run here
+   ./run.sh emulate --lib fqnovel/native/libs/libencrypt.so --list   # list ARM exports
+   ./run.sh emulate --lib fqnovel/native/libs/libencrypt.so _Z8get_dh_pv --str
    ```
+   The last two run the **armeabi-v7a** code directly on this x86_64 host via
+   Unicorn emulation (`pip install unicorn capstone`) — see `DESIGN.md §6.1`.
 
 `fqnovel/signer.py` exposes `NullSigner`, `HeaderFileSigner`, `RemoteSigner`,
 `NativeSigner`; the client picks one from `FQNOVEL_SIGN_HEADERS` /
@@ -206,7 +210,8 @@ fqnovel_api/
 │   ├── client.py              # FqnovelClient
 │   └── native/
 │       ├── extract_so.py      # pull .so out of the APK
-│       └── load_metasec.py    # ctypes loader + diagnostics
+│       ├── load_metasec.py    # ctypes loader + diagnostics
+│       └── emulate_so.py      # execute exported ARM fns via Unicorn
 ├── hooks/
 │   ├── frida_metasec.js       # capture / RPC sign()
 │   └── signer_bridge.py       # HTTP signer bridge over frida

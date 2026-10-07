@@ -187,8 +187,49 @@ title, code, author_speak, block_data, ...
 - 客户端已预留解析入口：`client.extract_contents()`（`client.py:68`）
   会从任意响应中按 `_CONTENT_KEYS` 递归取最长内容串，映射 `item_id → content`。
 
-**下一步待办**：按当初定位 `tryAddSecurityFactor` 的同一流程，
-从 `content`/`crypt_status` 的 getter 追到解密调用 → JNI/`.so`，锁定入口函数。
+### 6.1 直接执行 `.so`（离线仿真）实测
+
+因为本机是 x86_64、`.so` 是 armeabi-v7a/bionic，`ctypes` 无法加载；但可以用
+**Unicorn CPU 仿真**直接执行 ARM 代码（见 `fqnovel/native/emulate_so.py`）。
+实测结论（真值，非推断）：
+
+| 库                   | 可否离线执行       | 结果                                                                       |
+| -------------------- | ------------------ | -------------------------------------------------------------------------- |
+| `libencrypt.so`      | ✅ **可以**        | 导出若干**无 JNIEnv 的普通函数**；直接调用得到硬编码常量（见下）           |
+| `libEncryptor.so`    | ⚠️ 仅 `JNI_OnLoad` | 算法经 `RegisterNatives` 动态注册，需完整 JNI 环境                         |
+| `libdragon_crypt.so` | ⚠️ 仅 `JNI_OnLoad` | 同上                                                                       |
+| `libmetasec_ml.so`   | ❌ 不可行          | 149 个 undefined 依赖（含 `libandroid.so`）、混淆、反调试；离开 App 无法跑 |
+
+`libencrypt.so` 通过仿真直接调用得到的真实常量：
+
+```
+get_aes_token()       = "B5SE5K0FPA3VZZ4WHJWKBSQKX2MFGDUR"   (32)
+get_dh_aes_token()    = "ac25c67ddd8f38c1b37a2348828e222e"   (32)
+get_dh_gv()           = "2"                                   (DH 生成元 g)
+get_dh_pv()           = "FFFFFFFF...C90FDAA2...7FFFFFFF"      (1536-bit MODP Group-5 素数 p)
+set_aes_token()/_set_aes_context() = no-op（纯 bx lr）
+```
+
+**重要澄清**：`libencrypt.so` 只是**静态常量/令牌容器**（getter 返回全局指针），
+其中**没有请求签名算法**；请求签名在 `libmetasec_ml.so`，而后者无法离线执行。
+所以“直接跑 so 生成请求签名”这条路不成立——但“直接跑 so 提取内嵌常量/纯函数”
+成立，本工具已证明可行。
+
+复现：
+
+```bash
+pip install unicorn capstone
+./run.sh emulate --lib fqnovel/native/libs/libencrypt.so --list
+python -m fqnovel.native.emulate_so fqnovel/native/libs/libencrypt.so _Z8get_dh_pv --str
+```
+
+**下一步待办**：
+
+1. 继续补全 JNI 仿真（实现 `FindClass`/`RegisterNatives`/异常查询），
+   枚举 `libdragon_crypt.so` / `libEncryptor.so` 注册的 native 方法，
+   直接调用其解密函数（有望离线解正文）。
+2. 从 `content`/`crypt_status` 的 Java getter 追到解密调用 → JNI/`.so`，锁定入口。
+3. 签名仍必须走真机桥（方案 A）。
 
 ---
 

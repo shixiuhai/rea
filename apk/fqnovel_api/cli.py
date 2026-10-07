@@ -176,6 +176,20 @@ def cmd_probe_native(args) -> int:
     return probe(lib)
 
 
+def cmd_emulate(args) -> int:
+    from fqnovel.native import emulate_so
+    argv = [args.lib]
+    if args.symbol:
+        argv.append(args.symbol)
+    if args.list:
+        argv.append("--list")
+    if args.as_str:
+        argv.append("--str")
+    if args.args:
+        argv += ["--args", args.args]
+    return emulate_so.main(argv)
+
+
 DEFAULTS = {
     "host": config.API_HOST,
     "device_id": "",
@@ -265,6 +279,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("probe-native", help="attempt to load the signer .so", parents=[common])
     p.set_defaults(func=cmd_probe_native)
+
+    p = sub.add_parser("emulate", help="emulate an exported function of a native lib",
+                       parents=[common])
+    p.add_argument("--lib", required=True, help="path to the .so")
+    p.add_argument("symbol", nargs="?", default=None, help="mangled symbol to call")
+    p.add_argument("--list", action="store_true", help="list exported functions")
+    p.add_argument("--str", dest="as_str", action="store_true", help="treat r0 as a C string")
+    p.add_argument("--args", default="", help="comma-separated integer args")
+    p.set_defaults(func=cmd_emulate)
 
     return ap
 
