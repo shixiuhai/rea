@@ -25,6 +25,20 @@ import { JadxSession } from "./JadxSession.js";
 const OPERATION_TIMEOUT_MS = 120_000;
 type Outcome = Awaited<ReturnType<AndroidAnalysisPort["execute"]>>;
 
+/**
+ * Local operator override for the JADX worker heap. Large multi-dex APKs
+ * exhaust the audited 512 MiB default while loading. Unset or invalid values
+ * keep the audited default so upstream behavior is unchanged by default.
+ */
+const resolveJadxHeapMib = (
+  environment: Readonly<Record<string, string | undefined>>,
+): number => {
+  const raw = environment.REA_JADX_HEAP_MIB;
+  if (raw === undefined) return 512;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 128 ? parsed : 512;
+};
+
 const waitForTurn = (
   predecessor: Promise<void>,
   request: AndroidRequest,
@@ -199,11 +213,12 @@ export class JadxProvider implements AndroidAnalysisPort {
         request.operation,
       );
       signal.throwIfAborted();
+      const heapMib = resolveJadxHeapMib(this.environment);
       session = new JadxSession(
         {
           command: configuration.java,
           arguments: [
-            "-Xmx512m",
+            `-Xmx${heapMib}m`,
             "-XX:ActiveProcessorCount=1",
             "-jar",
             engine.path,
@@ -216,7 +231,9 @@ export class JadxProvider implements AndroidAnalysisPort {
           ],
           cwd: root.path,
           hostEnvironment: this.environment,
-          env: { _JAVA_OPTIONS: "-Xmx512m -XX:ActiveProcessorCount=1" },
+          env: {
+            _JAVA_OPTIONS: `-Xmx${heapMib}m -XX:ActiveProcessorCount=1`,
+          },
         },
         this.launcher,
       );
@@ -227,6 +244,7 @@ export class JadxProvider implements AndroidAnalysisPort {
           snapshot,
           jarHash: engine.sha256,
           signal,
+          heapMib,
         }),
       );
     } catch (cause) {

@@ -45,8 +45,9 @@ export class JadxSession {
     readonly snapshot: string;
     readonly jarHash: string;
     readonly signal: AbortSignal;
+    readonly heapMib: number;
   }): Promise<AnalysisExecution> {
-    const { request, target, snapshot, jarHash, signal } = context;
+    const { request, target, snapshot, jarHash, signal, heapMib } = context;
     const abort = () => {
       void this.transport.close().catch(() => undefined);
     };
@@ -84,7 +85,7 @@ export class JadxSession {
         source_revision:
           jarHash === JADX_RELEASE.sha256 ? JADX_RELEASE.revision : null,
         worker_count: 1,
-        heap_limit_mib: 512,
+        heap_limit_mib: heapMib,
       } as const;
       const result = await analyzeJadxRequest(tools, request, loaded, engine);
       return createAnalysisExecution(result, JADX_PROVIDER_IDENTITY, {
